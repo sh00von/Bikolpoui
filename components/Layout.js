@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Header from './Header';
 import Footer from './Footer';
 
-const Layout = ({ children, title = 'Default Title', description = 'Default description' }) => {
+const Layout = ({ children, title = 'Default Title', description = 'Default description', ogImage = '/path/to/default-image.jpg' }) => {
   return (
     <div className="flex flex-col min-h-screen bg-base-100">
       <Head>
@@ -11,7 +11,13 @@ const Layout = ({ children, title = 'Default Title', description = 'Default desc
         <meta name="description" content={description} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
-        {/* Add additional meta tags here */}
+        
+        {/* Open Graph Meta Tags for Facebook */}
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:image" content="/bikolpo.png" />
+        <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
+        <meta property="og:type" content="website" />
       </Head>
       <Header />
       <main className="flex-grow">{children}</main>
