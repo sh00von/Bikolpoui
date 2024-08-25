@@ -1,14 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import RelatedProducts from './RelatedProducts';
 
-const ProductResult = ({ productDetails, relatedProducts, loading }) => {
+const ProductResult = ({ productDetails, loading }) => {
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchRelatedProducts = async () => {
+      if (productDetails && productDetails.category) {
+        try {
+          const response = await fetch(`/api/products?category=${productDetails.category}`);
+          const data = await response.json();
+
+          // Filter out the product itself from the related products list
+          const filteredProducts = data.filter(product => product.url !== productDetails.url);
+          setRelatedProducts(filteredProducts);
+        } catch (err) {
+          console.error('Failed to fetch related products by category', err);
+          setError('Failed to fetch related products');
+          setRelatedProducts([]);
+        }
+      }
+    };
+
+    fetchRelatedProducts();
+  }, [productDetails]);
+
   if (loading) {
-    return <p className="text-base-content">Loading...</p>;
+    return (
+      <div className="flex items-center justify-center h-40">
+        <p className="text-base-content text-lg">Loading...</p>
+      </div>
+    );
   }
 
   return (
     <div className="mt-6 p-4 border border-base-300 rounded-lg bg-base-100">
-      {productDetails.name && (
+      {productDetails.name ? (
         <>
           <div className="mb-6">
             <h3 className="text-xl font-semibold text-primary mb-4">Product Details:</h3>
@@ -37,8 +65,13 @@ const ProductResult = ({ productDetails, relatedProducts, loading }) => {
               )}
             </div>
           </div>
-          <RelatedProducts relatedProducts={relatedProducts} />
+          {relatedProducts.length > 0 && (
+            <RelatedProducts relatedProducts={relatedProducts} />
+          )}
+          {error && <p className="text-error">{error}</p>}
         </>
+      ) : (
+        <p className="text-center text-error">No product details available.</p>
       )}
     </div>
   );

@@ -1,23 +1,45 @@
-// pages/products.js
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import Layout from '../components/Layout'; // Adjust the import path if necessary
+import { useEffect, useState, useRef, useCallback } from 'react';
+import Layout from '../components/Layout';
+import ProductTable from '../components/ProductTable';
+import ProductStats from '../components/ProductStats';
+import ProductFilter from '../components/ProductFilter';
+import Spinner from '../components/Spinner';
+
+const LOCAL_STORAGE_KEY = 'productData';
+const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 1 day in milliseconds
 
 const ProductsPage = () => {
   const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // Filter state: 'all', 'BD', or 'IN'
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null); // State to track the selected product
+  const [relatedProducts, setRelatedProducts] = useState([]); // State to track related products
+
+  const modalRef = useRef(null); // React ref for the modal
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const loadProducts = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/products'); // Adjust the URL if needed
-        if (!response.ok) throw new Error('Failed to fetch products');
-        const data = await response.json();
-        setProducts(data.results || []);
-        setFilteredProducts(data.results || []);
+        const cachedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const cachedTime = localStorage.getItem(`${LOCAL_STORAGE_KEY}_timestamp`);
+        
+        if (cachedData && cachedTime && (Date.now() - parseInt(cachedTime, 10) < CACHE_EXPIRY_TIME)) {
+          const parsedData = JSON.parse(cachedData);
+          setProducts(parsedData);
+          setFilteredProducts(applyFilter(parsedData, filter));
+        } else {
+          const response = await fetch('/api/products');
+          if (!response.ok) {
+            throw new Error(`Error: ${response.status}`);
+          }
+          const data = await response.json();
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+          localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
+          setProducts(data);
+          setFilteredProducts(applyFilter(data, filter));
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
       } finally {
@@ -25,132 +47,179 @@ const ProductsPage = () => {
       }
     };
 
-    fetchProducts();
-  }, []);
+    loadProducts();
+  }, [filter]);
 
-  useEffect(() => {
-    if (filter === 'all') {
-      setFilteredProducts(products);
-    } else {
-      setFilteredProducts(products.filter(product => product.origin_country === filter));
+  const applyFilter = (products, filter) => {
+    return filter === 'all'
+      ? products
+      : products.filter((product) => product.origin_country === filter);
+  };
+
+  const handleFilterChange = (e) => {
+    setFilter(e.target.value);
+  };
+
+  const handleRowClick = (product) => {
+    setSelectedProduct(product);
+    checkProduct(product.name); // Ensure related products are fetched when a row is clicked
+    if (modalRef.current) {
+      modalRef.current.showModal(); // Open the modal
     }
-  }, [filter, products]);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedProduct(null);
+    setRelatedProducts([]);
+    if (modalRef.current) {
+      modalRef.current.close(); // Close the modal
+    }
+  };
+
+  const checkProduct = async (productName) => {
+    setLoading(true);
+    const product = products.find(p => p.name === productName);
+  
+    if (!product) {
+      setSelectedProduct(null);
+      setRelatedProducts([]);
+      setLoading(false);
+      return;
+    }
+  
+    setSelectedProduct(product);
+  
+    // Find related products from related_product field
+    const related = product.related_product || [];
+    console.log('Related Products:', related); // Log related products
+  
+    // Fetch related product details
+    const relatedProductsDetails = await Promise.all(
+      related.map(async (relatedProduct) => {
+        try {
+          return products.find(p => p.id === relatedProduct.id); // Find full product details
+        } catch (err) {
+          console.error('Failed to fetch related product details:', err);
+          return null;
+        }
+      })
+    );
+  
+    // Filter out null values and products not meeting criteria
+    const filteredRelated = relatedProductsDetails
+      .filter(r => r !== null && r.id !== product.id); // Exclude the selected product
+  
+    // Find additional related products in the same category
+    const sameCategoryRelated = findRelatedProductsByCategory(product.category)
+      .filter(p => p.id !== product.id); // Exclude the selected product
+  
+    // Combine related products from both sources
+    const allRelatedProducts = [...filteredRelated, ...sameCategoryRelated];
+  
+    setRelatedProducts(allRelatedProducts);
+    setLoading(false);
+  };
+  
+
+  const findRelatedProductsByCategory = (category) => {
+    return products.filter(p => p.category === category && p.name !== selectedProduct?.name);
+  };
 
   const totalProducts = products.length;
-  const bdCount = products.filter(product => product.origin_country === 'BD').length;
-  const inCount = products.filter(product => product.origin_country === 'IN').length;
-
-  if (loading) {
-    return (
-      <Layout title="Products | BikOlpoo" description="View the list of products with their origin country information.">
-        <div className="flex justify-center items-center min-h-screen bg-base-100">
-          <span className="loading loading-ring loading-lg"></span>
-        </div>
-      </Layout>
-    );
-  }
+  const bdCount = products.filter(p => p.origin_country === 'Bangladesh').length;
+  const inCount = products.filter(p => p.origin_country === 'India').length;
 
   return (
-    <Layout title="Products | BikOlpoo" description="View and filter products based on their origin country.">
-      <div className="min-h-screen p-6 flex flex-col items-center">
-        <h1 className="text-3xl font-bold mb-6 text-primary text-center">Product List</h1>
-        
-        {/* Link to Homepage */}
-        <div className="mb-6">
-          <Link href="/" className="text-blue-500 hover:underline">
-            Back to Homepage
-          </Link>
-        </div>
-        
-        {/* Stats Section */}
-        <div className="stats stats-vertical lg:stats-horizontal shadow mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 bg-base-300 p-4 rounded-lg">
-          <div className="stat place-items-center bg-base-300 p-4">
-            <div className="stat-title">Total Products</div>
-            <div className="stat-value text-3xl font-bold">{totalProducts}</div>
-            <div className="stat-desc text-sm text-base-content">Overall count of products listed.</div>
-          </div>
-
-          <div className="stat place-items-center bg-base-300 p-4">
-            <div className="stat-title">Bangladesh Products</div>
-            <div className="stat-value text-3xl font-bold text-green-600">{bdCount}</div>
-            <div className="stat-desc text-sm text-base-content">Products originating from Bangladesh.</div>
-          </div>
-
-          <div className="stat place-items-center bg-base-300 p-4">
-            <div className="stat-title">Indian Products</div>
-            <div className="stat-value text-3xl font-bold text-red-600">{inCount}</div>
-            <div className="stat-desc text-sm text-base-content">Products originating from India.</div>
-          </div>
-        </div>
-
-        {/* Filter Section */}
-        <div className="mb-6">
-          <label htmlFor="filter" className="mr-2 text-base-content">Filter by Origin:</label>
-          <select
-            id="filter"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="p-2 border border-base-300 rounded-md"
-          >
-            <option value="all">All</option>
-            <option value="BD">Bangladesh</option>
-            <option value="IN">India</option>
-          </select>
-        </div>
-
-        {/* Table Section */}
-        <div className="w-full max-w-6xl overflow-x-auto bg-base-200 border border-base-300 rounded-lg shadow-md">
-          <table className="min-w-full bg-base-100">
-            <thead className="bg-base-300 border-b">
-              <tr>
-                <th className="p-4 text-left text-base-content">Name</th>
-                <th className="p-4 text-left text-base-content">Origin Country</th>
-                <th className="p-4 text-left text-base-content">Barcode</th>
-                <th className="p-4 text-left text-base-content">Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((product) => {
-                  // Determine row color based on origin country
-                  const rowColor = product.origin_country === 'BD'
-                    ? 'bg-green-800'
-                    : product.origin_country === 'IN'
-                    ? 'bg-red-800'
-                    : 'bg-base-100'; // Default color
-
-                  return (
-                    <tr key={product.url} className={`border-b hover:bg-base-200 ${rowColor}`}>
-                      <td className="p-4 text-base-content">{product.name}</td>
-                      <td className="p-4 text-base-content flex items-center">
-                        {product.origin_country}
-                        {product.origin_country === 'BD' && (
+    <Layout title="Products | BikOlpoo" description="Identify products from India and find Bangladeshi alternatives.">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6">
+        <h1 className="text-4xl font-bold text-primary mb-6">Products</h1>
+        <div className="w-full max-w-4xl">
+          <ProductStats totalProducts={totalProducts} bdCount={bdCount} inCount={inCount} />
+          <ProductFilter filter={filter} onFilterChange={handleFilterChange} />
+          {loading ? (
+            <div className="text-center text-lg text-gray-500 mt-6">Loading...</div>
+          ) : (
+            <ProductTable
+              products={filteredProducts}
+              onRowClick={handleRowClick}
+              getRowClass={(product) => product.origin_country === 'India' ? 'bg-red-800 text-white' : 'bg-green-800 text-white'} // Apply background color based on origin country
+            />
+          )}
+          <dialog ref={modalRef} className="modal">
+            <div className="modal-box bg-base-100 p-6 rounded-lg shadow-lg">
+              {loading ? (
+                <div className="flex items-center justify-center h-40">
+                  <Spinner />
+                </div>
+              ) : selectedProduct ? (
+                <>
+                  <h3 className="text-xl font-bold text-primary mb-4">{selectedProduct.name}</h3>
+                  <div className="space-y-4 mb-4">
+                    <div className="flex items-center">
+                      <span className="font-medium text-base-content">Origin Country:</span>
+                      <span className="ml-2 text-base-content">{selectedProduct.origin_country}</span>
+                      {selectedProduct.origin_country === 'BD' && (
+                        <img
+                          src="https://flagsapi.com/BD/shiny/32.png"
+                          alt="Bangladesh Flag"
+                          className="ml-2 w-6 h-6"
+                        />
+                      )}
+                      {selectedProduct.origin_country === 'India' && (
+                        <img
+                          src="https://flagsapi.com/IN/shiny/32.png"
+                          alt="India Flag"
+                          className="ml-2 w-6 h-6"
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-medium text-base-content">Category:</span>
+                      <span className="ml-2 text-base-content">{selectedProduct.category}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-medium text-base-content">Barcode:</span>
+                      <span className="ml-2 text-base-content">{selectedProduct.barcode || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="font-medium text-base-content">Details:</span>
+                      <span className="ml-2 text-base-content">{selectedProduct.details || 'N/A'}</span>
+                    </div>
+                  </div>
+                  {selectedProduct.origin_country === 'India' && (
+                    <div className="mb-4 p-4 bg-red-800 border rounded-lg">
+                      <p className="text-base-content">This product is from India. Consider using products from Bangladesh for better alternatives.</p>
+                    </div>
+                  )}
+                  <h4 className="text-lg font-semibold text-primary mb-2">Related Products:</h4>
+                  {relatedProducts.length > 0 ? (
+                    <ul className="space-y-4">
+                      {relatedProducts.map((product) => (
+                        <li key={product.id} className={`flex items-center ${product.origin_country === 'India' ? 'bg-red-800' : 'bg-green-800'} space-x-4 py-2 px-4 bg-base-200 rounded-lg shadow-sm`}>
                           <img
-                            src="https://flagsapi.com/BD/shiny/32.png"
-                            alt="Bangladesh Flag"
-                            className="inline-block ml-2 w-6 h-6"
+                            src={`https://flagsapi.com/${product.origin_country === 'Bangladesh' ? 'BD' : 'IN'}/shiny/32.png`}
+                            alt={`${product.origin_country} Flag`}
+                            className="w-8 h-8 rounded-full"
                           />
-                        )}
-                        {product.origin_country === 'IN' && (
-                          <img
-                            src="https://flagsapi.com/IN/shiny/32.png"
-                            alt="India Flag"
-                            className="inline-block ml-2 w-6 h-6"
-                          />
-                        )}
-                      </td>
-                      <td className="p-4 text-base-content">{product.barcode || 'N/A'}</td>
-                      <td className="p-4 text-base-content">{product.details || 'No details available'}</td>
-                    </tr>
-                  );
-                })
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-lg">{product.name}</span>
+                            <span className="text-sm text-gray-500">{product.origin_country}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No related products found.</p>
+                  )}
+                </>
               ) : (
-                <tr>
-                  <td colSpan="4" className="p-4 text-center text-base-content">No products available</td>
-                </tr>
+                <p className="text-center py-4 text-base-content">No product selected.</p>
               )}
-            </tbody>
-          </table>
+              <div className="modal-action">
+                <button className="btn" onClick={handleCloseModal}>Close</button>
+              </div>
+            </div>
+          </dialog>
         </div>
       </div>
     </Layout>

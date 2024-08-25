@@ -11,8 +11,8 @@ const RelatedProducts = ({ relatedProducts }) => {
               key={index}
               className={`p-4 border rounded-lg ${
                 related.origin_country === 'IN'
-                  ? 'bg-base-200 border-red-300'
-                  : 'bg-base-200 border-green-300'
+                  ? 'bg-red-800 border-red-300'
+                  : 'bg-green-800 border-green-300'
               }`}
             >
               <div className="flex items-center gap-4">
@@ -23,11 +23,14 @@ const RelatedProducts = ({ relatedProducts }) => {
                       : 'bg-green-600'
                   } flex items-center justify-center`}
                 >
+                  <span className="text-white text-xs">
+                    {related.origin_country === 'IN' ? 'IN' : 'BD'}
+                  </span>
                 </span>
                 <div className="flex-1">
                   <h4 className="text-lg font-semibold text-base-content flex items-center gap-2">
-                   
-                    {related.name} {related.origin_country === 'BD' && (
+                    {related.name}
+                    {related.origin_country === 'BD' && (
                       <img
                         src="https://flagsapi.com/BD/flat/64.png"
                         alt="Bangladesh Flag"
@@ -35,7 +38,7 @@ const RelatedProducts = ({ relatedProducts }) => {
                       />
                     )}
                   </h4>
-                  <p className="text-base-content">
+                  <p className="text-base-content mt-1">
                     <strong>Details:</strong> {related.details || 'No details available'}
                   </p>
                 </div>
