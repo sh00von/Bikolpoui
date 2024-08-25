@@ -1,34 +1,31 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Fuse from 'fuse.js'; // Import fuse.js
 import debounce from 'debounce';
 import Layout from '../components/Layout';
-import ProductTable from '../components/ProductTable';
-import ProductStats from '../components/ProductStats';
-import ProductFilter from '../components/ProductFilter';
 import SearchInput from '../components/SearchInput';
+import ProductResult from '../components/ProductResult';
 import Spinner from '../components/Spinner';
+import Link from 'next/link'; // Ensure correct import for Link
 
 const LOCAL_STORAGE_KEY = 'productData';
 const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 1 day in milliseconds
 
-const ProductsPage = () => {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // Filter state: 'all', 'BD', or 'IN'
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null); // State to track the selected product
-  const [relatedProducts, setRelatedProducts] = useState([]);
+export default function Home() {
   const [searchValue, setSearchValue] = useState('');
+  const [productDetails, setProductDetails] = useState(null);
+  const [relatedProducts, setRelatedProducts] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState([]);
   const [error, setError] = useState('');
   const [searchPerformed, setSearchPerformed] = useState(false);
 
-  const modalRef = useRef(null); // React ref for the modal
-
+  // Fetch products from API or localStorage
   useEffect(() => {
     const loadProducts = async () => {
       setLoading(true);
       try {
+        // Check if data is available in localStorage and is still valid
         const cachedData = localStorage.getItem(LOCAL_STORAGE_KEY);
         const cachedTime = localStorage.getItem(`${LOCAL_STORAGE_KEY}_timestamp`);
         
@@ -44,6 +41,7 @@ const ProductsPage = () => {
           const data = await response.json();
           console.log('API Data:', data);
           
+          // Save data to localStorage
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
           localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
           setProducts(data || []);
@@ -59,16 +57,7 @@ const ProductsPage = () => {
     loadProducts();
   }, []);
 
-  const applyFilter = (products, filter) => {
-    return filter === 'all'
-      ? products
-      : products.filter((product) => product.origin_country === filter);
-  };
-
-  useEffect(() => {
-    setFilteredProducts(applyFilter(products, filter));
-  }, [products, filter]);
-
+  // Function to get suggestions using fuzzy search
   const getSuggestions = (input) => {
     if (!Array.isArray(products) || input.trim() === '') return [];
     
@@ -89,61 +78,52 @@ const ProductsPage = () => {
   const checkProduct = async (productName) => {
     setLoading(true);
     const product = products.find(p => p.name === productName);
-  
+
     if (!product) {
-      setSelectedProduct(null);
+      setProductDetails(null);
       setRelatedProducts([]);
       setLoading(false);
       return;
     }
-  
-    setSelectedProduct(product);
-  
-    // Extract related product URLs
-    const relatedProductUrls = product.related_product || [];
-  
-    // Fetch related products based on the URLs
+
+    setProductDetails(product);
+
+    // Find related products from related_product field
+    const related = product.related_product || [];
+    console.log('Related Products:', related); // Log related products
+
+    // Fetch related product details
     const relatedProductsDetails = await Promise.all(
-      relatedProductUrls.map(async (url) => {
-        try {
-          // Fetch the related product using its URL
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch related product from ${url}`);
+      related.map(async (relatedProduct) => {
+        // Only include approved related products
+        if (relatedProduct.approved) {
+          try {
+            return relatedProduct; // Use the related product details from the API response
+          } catch (err) {
+            console.error('Failed to fetch related product details:', err);
+            return null;
           }
-          const relatedProduct = await response.json();
-  
-          // Ensure that the related product is approved
-          if (relatedProduct.approved) {
-            return relatedProduct;
-          }
-        } catch (err) {
-          console.error('Failed to fetch related product details:', err);
         }
         return null;
       })
     );
-  
-    // Filter out null values
-    const filteredRelated = relatedProductsDetails.filter(r => r !== null);
-  
+
+    // Filter out null values and products not meeting criteria
+    const filteredRelated = relatedProductsDetails
+      .filter(r => r && (r.barcode || r.details || r.approved));
+
     // Find additional related products in the same category
     const sameCategoryRelated = findRelatedProductsByCategory(product.category);
-  
+
     // Combine related products from both sources
     const allRelatedProducts = [...filteredRelated, ...sameCategoryRelated];
-  
+
     setRelatedProducts(allRelatedProducts);
     setLoading(false);
-  
-    if (modalRef.current) {
-      modalRef.current.showModal(); // Open the modal
-    }
   };
-  
 
   const findRelatedProductsByCategory = (category) => {
-    return products.filter(p => p.category === category && p.name !== selectedProduct?.name);
+    return products.filter(p => p.category === category && p.name !== productDetails?.name);
   };
 
   const handleInputChange = (value) => {
@@ -158,32 +138,14 @@ const ProductsPage = () => {
     checkProduct(productName);
   };
 
-  const handleCloseModal = () => {
-    setSelectedProduct(null);
-    setRelatedProducts([]);
-    if (modalRef.current) {
-      modalRef.current.close(); // Close the modal
-    }
-  };
-
-  const totalProducts = products.length;
-  const bdCount = products.filter(p => p.origin_country === 'BD').length;
-  const inCount = products.filter(p => p.origin_country === 'IN').length;
-
   return (
     <Layout title="Home | BikOlpoo" description="Identify products from India and find Bangladeshi alternatives.">
       <div className="flex flex-col items-center justify-center min-h-screen p-6">
         <div className="w-full max-w-4xl bg-base-300 shadow-lg rounded-lg p-6">
-          <h1 className="text-4xl font-bold mb-4 text-primary text-center">Products</h1>
-          <ProductStats totalProducts={totalProducts} bdCount={bdCount} inCount={inCount} />
-          <ProductFilter filter={filter} onFilterChange={(e) => setFilter(e.target.value)} />
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <Spinner />
-            </div>
-          ) : (
-            <ProductTable products={filteredProducts} onRowClick={(product) => checkProduct(product.name)} />
-          )}
+          <h1 className="text-4xl font-bold mb-4 text-primary text-center">BikOlpoo</h1>
+          <p className="text-lg text-base-content mb-8 text-center">
+            This application is designed to help you identify products from India and suggest Bangladeshi alternatives. Made by Random Citizens, our goal is to provide you with reliable information about product origins to make informed decisions. Enter a product name or barcode to see if it is of Indian origin. If it is, we will show you safer alternatives from Bangladesh.
+          </p>
           <SearchInput
             value={searchValue}
             onChange={handleInputChange}
@@ -196,45 +158,22 @@ const ProductsPage = () => {
                 <div className="flex items-center justify-center h-40">
                   <Spinner />
                 </div>
-              ) : selectedProduct ? (
-                <div className="mt-8 text-center">
-                  <Link href="/products" className="text-blue-500 hover:underline">
-                    View all products
-                  </Link>
-                </div>
+              ) : productDetails ? (
+                <ProductResult
+                  productDetails={productDetails}
+                  relatedProducts={relatedProducts}
+                  loading={loading}
+                />
               ) : null}
             </div>
           )}
-        </div>
-
-        {/* Modal */}
-        <dialog ref={modalRef} className="modal modal-open">
-          <div className="modal-box bg-base-100 p-6 rounded-lg shadow-lg">
-            <h3 className="text-xl font-bold text-primary mb-4">Related Products</h3>
-            {loading ? (
-              <div className="flex items-center justify-center h-40">
-                <Spinner />
-              </div>
-            ) : relatedProducts.length > 0 ? (
-              <ul className="space-y-4">
-                {relatedProducts.map((product) => (
-                  <li key={product.barcode} className="flex justify-between items-center">
-                    <span>{product.name}</span>
-                    <span>{product.details}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No related products found.</p>
-            )}
-            <div className="modal-action">
-              <button className="btn" onClick={handleCloseModal}>Close</button>
-            </div>
+          <div className="mt-8 text-center">
+            <Link href="/products" className="text-blue-500 hover:underline">
+              View all products
+            </Link>
           </div>
-        </dialog>
+        </div>
       </div>
     </Layout>
   );
-};
-
-export default ProductsPage;
+}
