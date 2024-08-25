@@ -10,7 +10,7 @@ const RelatedProducts = ({ relatedProducts }) => {
             <li
               key={index}
               className={`p-4 border rounded-lg ${
-                related.origin_country === 'IN'
+                related.origin_country === 'India'
                   ? 'bg-red-800 border-red-300'
                   : 'bg-green-800 border-green-300'
               }`}
@@ -18,19 +18,19 @@ const RelatedProducts = ({ relatedProducts }) => {
               <div className="flex items-center gap-4">
                 <span
                   className={`w-6 h-6 rounded-full ${
-                    related.origin_country === 'IN'
+                    related.origin_country === 'India'
                       ? 'bg-red-600'
                       : 'bg-green-600'
                   } flex items-center justify-center`}
                 >
                   <span className="text-white text-xs">
-                    {related.origin_country === 'IN' ? 'IN' : 'BD'}
+                    {related.origin_country === 'India' ? 'IN' : 'BD'}
                   </span>
                 </span>
                 <div className="flex-1">
                   <h4 className="text-lg font-semibold text-base-content flex items-center gap-2">
                     {related.name}
-                    {related.origin_country === 'BD' && (
+                    {related.origin_country === 'Bangladesh' && (
                       <img
                         src="https://flagsapi.com/BD/flat/64.png"
                         alt="Bangladesh Flag"

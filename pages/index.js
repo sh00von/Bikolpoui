@@ -160,10 +160,10 @@ export default function Home() {
                 </div>
               ) : productDetails ? (
                 <ProductResult
-                  productDetails={productDetails}
-                  relatedProducts={relatedProducts}
-                  loading={loading}
-                />
+  productDetails={productDetails}
+  products={products} // Ensure this is passed correctly
+  loading={loading}
+/>
               ) : null}
             </div>
           )}
