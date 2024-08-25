@@ -2,7 +2,7 @@
 import Head from 'next/head';
 import Header from './Header';
 import Footer from './Footer';
-
+import { Analytics } from "@vercel/analytics/react";
 const Layout = ({ children, title = 'Default Title', description = 'Default description', ogImage = '/path/to/default-image.jpg' }) => {
   return (
     <div className="flex flex-col min-h-screen bg-base-100">
@@ -21,6 +21,8 @@ const Layout = ({ children, title = 'Default Title', description = 'Default desc
       </Head>
       <Header />
       <main className="flex-grow">{children}</main>
+      
+      <Analytics />
       <Footer />
     </div>
   );
