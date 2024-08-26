@@ -131,26 +131,32 @@ const ProductsPage = () => {
         
         <div className="w-full max-w-4xl">
           <ProductStats totalProducts={totalProducts} bdCount={bdCount} inCount={inCount} />
-          <div className="flex justify-center mb-6">
-  <div className="flex space-x-4">
-    <div className="flex items-center">
-      <label htmlFor="category-filter" className="mr-2">Category:</label>
-      <select id="category-filter" value={selectedCategory} onChange={handleCategoryChange} className="p-2 border border-gray-300 rounded">
-        <option value="All">All</option>
-        <option value="Personal Care Products">Personal Care Products</option>
-        <option value="Beverages">Beverages</option>
-        {/* Add more categories here */}
-      </select>
-    </div>
+          <div className="flex flex-col items-center mb-6 space-y-4 md:space-y-0 md:flex-row md:space-x-4 md:justify-center">
+  <div className="flex items-center space-x-2">
+    <label htmlFor="category-filter" className="whitespace-nowrap">Category:</label>
+    <select 
+      id="category-filter" 
+      value={selectedCategory} 
+      onChange={handleCategoryChange} 
+      className="select select-primary w-full max-w-xs">
+      <option value="All">All</option>
+      <option value="Personal Care Products">Personal Care Products</option>
+      <option value="Beverages">Beverages</option>
+      {/* Add more categories here */}
+    </select>
+  </div>
 
-    <div className="flex items-center">
-      <label htmlFor="origin-filter" className="mr-2">Origin:</label>
-      <select id="origin-filter" value={selectedOrigin} onChange={handleOriginChange} className="p-2 border border-gray-300 rounded">
-        <option value="All">All</option>
-        <option value="Bangladesh">Bangladesh</option>
-        <option value="India">India</option>
-      </select>
-    </div>
+  <div className="flex items-center space-x-2">
+    <label htmlFor="origin-filter" className="whitespace-nowrap">Origin:</label>
+    <select 
+      id="origin-filter" 
+      value={selectedOrigin} 
+      onChange={handleOriginChange} 
+      className="select select-primary w-full max-w-xs">
+      <option value="All">All</option>
+      <option value="Bangladesh">Bangladesh</option>
+      <option value="India">India</option>
+    </select>
   </div>
 </div>
 
