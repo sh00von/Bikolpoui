@@ -76,6 +76,13 @@ const ProductResult = ({ productDetails, products, loading }) => {
                   className="w-6 h-6"
                 />
               )}
+              {productDetails.origin_country === 'India' && (
+                <img
+                  src="https://flagsapi.com/IN/flat/64.png"
+                  alt="India Flag"
+                  className="w-6 h-6"
+                />
+              )}
             </div>
             <p className="text-base-content"><strong>Barcode:</strong> {productDetails.barcode || 'N/A'}</p>
             <p className="text-base-content"><strong>Details:</strong> {productDetails.details || 'No additional details'}</p>

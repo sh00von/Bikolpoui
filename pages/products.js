@@ -1,8 +1,7 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import ProductTable from '../components/ProductTable';
 import ProductStats from '../components/ProductStats';
-import ProductFilter from '../components/ProductFilter';
 import Spinner from '../components/Spinner';
 
 const LOCAL_STORAGE_KEY = 'productData';
@@ -11,12 +10,12 @@ const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 1 day in milliseconds
 const ProductsPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // Filter state: 'all', 'BD', or 'IN'
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null); // State to track the selected product
-  const [relatedProducts, setRelatedProducts] = useState([]); // State to track related products
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedOrigin, setSelectedOrigin] = useState('All');
 
-  const modalRef = useRef(null); // React ref for the modal
+  const modalRef = useRef(null);
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -28,7 +27,6 @@ const ProductsPage = () => {
         if (cachedData && cachedTime && (Date.now() - parseInt(cachedTime, 10) < CACHE_EXPIRY_TIME)) {
           const parsedData = JSON.parse(cachedData);
           setProducts(parsedData);
-          setFilteredProducts(applyFilter(parsedData, filter));
         } else {
           const response = await fetch('/api/products');
           if (!response.ok) {
@@ -38,7 +36,6 @@ const ProductsPage = () => {
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
           localStorage.setItem(`${LOCAL_STORAGE_KEY}_timestamp`, Date.now().toString());
           setProducts(data);
-          setFilteredProducts(applyFilter(data, filter));
         }
       } catch (error) {
         console.error('Error fetching products:', error);
@@ -48,23 +45,13 @@ const ProductsPage = () => {
     };
 
     loadProducts();
-  }, [filter]);
-
-  const applyFilter = (products, filter) => {
-    return filter === 'all'
-      ? products
-      : products.filter((product) => product.origin_country === filter);
-  };
-
-  const handleFilterChange = (e) => {
-    setFilter(e.target.value);
-  };
+  }, []);
 
   const handleRowClick = (product) => {
     setSelectedProduct(product);
-    checkProduct(product.name); // Ensure related products are fetched when a row is clicked
+    checkProduct(product.name);
     if (modalRef.current) {
-      modalRef.current.showModal(); // Open the modal
+      modalRef.current.showModal();
     }
   };
 
@@ -72,7 +59,7 @@ const ProductsPage = () => {
     setSelectedProduct(null);
     setRelatedProducts([]);
     if (modalRef.current) {
-      modalRef.current.close(); // Close the modal
+      modalRef.current.close();
     }
   };
 
@@ -89,15 +76,11 @@ const ProductsPage = () => {
   
     setSelectedProduct(product);
   
-    // Find related products from related_product field
     const related = product.related_product || [];
-    console.log('Related Products:', related); // Log related products
-  
-    // Fetch related product details
     const relatedProductsDetails = await Promise.all(
       related.map(async (relatedProduct) => {
         try {
-          return products.find(p => p.id === relatedProduct.id); // Find full product details
+          return products.find(p => p.id === relatedProduct.id);
         } catch (err) {
           console.error('Failed to fetch related product details:', err);
           return null;
@@ -105,26 +88,36 @@ const ProductsPage = () => {
       })
     );
   
-    // Filter out null values and products not meeting criteria
     const filteredRelated = relatedProductsDetails
-      .filter(r => r !== null && r.id !== product.id); // Exclude the selected product
+      .filter(r => r !== null && r.id !== product.id);
   
-    // Find additional related products in the same category
     const sameCategoryRelated = findRelatedProductsByCategory(product.category)
-      .filter(p => p.id !== product.id); // Exclude the selected product
+      .filter(p => p.id !== product.id);
   
-    // Combine related products from both sources
     const allRelatedProducts = [...filteredRelated, ...sameCategoryRelated];
   
     setRelatedProducts(allRelatedProducts);
     setLoading(false);
   };
-  
 
   const findRelatedProductsByCategory = (category) => {
     return products.filter(p => p.category === category && p.name !== selectedProduct?.name);
   };
 
+  const handleCategoryChange = (event) => {
+    setSelectedCategory(event.target.value);
+  };
+
+  const handleOriginChange = (event) => {
+    setSelectedOrigin(event.target.value);
+  };
+
+  // Filtered products based on selected filters
+  const filteredProducts = products
+    .filter(p => selectedCategory === 'All' || p.category === selectedCategory)
+    .filter(p => selectedOrigin === 'All' || p.origin_country === selectedOrigin);
+
+  // Counter stats based on all products
   const totalProducts = products.length;
   const bdCount = products.filter(p => p.origin_country === 'Bangladesh').length;
   const inCount = products.filter(p => p.origin_country === 'India').length;
@@ -133,16 +126,43 @@ const ProductsPage = () => {
     <Layout title="Products | BikOlpoo" description="Identify products from India and find Bangladeshi alternatives.">
       <div className="flex flex-col items-center justify-center min-h-screen p-6">
         <h1 className="text-4xl font-bold text-primary mb-6">Products</h1>
+        
+ 
+        
         <div className="w-full max-w-4xl">
           <ProductStats totalProducts={totalProducts} bdCount={bdCount} inCount={inCount} />
-          <ProductFilter filter={filter} onFilterChange={handleFilterChange} />
+          <div className="flex justify-center mb-6">
+  <div className="flex space-x-4">
+    <div className="flex items-center">
+      <label htmlFor="category-filter" className="mr-2">Category:</label>
+      <select id="category-filter" value={selectedCategory} onChange={handleCategoryChange} className="p-2 border border-gray-300 rounded">
+        <option value="All">All</option>
+        <option value="Personal Care Products">Personal Care Products</option>
+        <option value="Beverages">Beverages</option>
+        {/* Add more categories here */}
+      </select>
+    </div>
+
+    <div className="flex items-center">
+      <label htmlFor="origin-filter" className="mr-2">Origin:</label>
+      <select id="origin-filter" value={selectedOrigin} onChange={handleOriginChange} className="p-2 border border-gray-300 rounded">
+        <option value="All">All</option>
+        <option value="Bangladesh">Bangladesh</option>
+        <option value="India">India</option>
+      </select>
+    </div>
+  </div>
+</div>
+
           {loading ? (
-            <div className="text-center text-lg text-gray-500 mt-6">Loading...</div>
+            <div className="flex items-center justify-center h-40">
+                  <Spinner />
+                </div>
           ) : (
             <ProductTable
               products={filteredProducts}
               onRowClick={handleRowClick}
-              getRowClass={(product) => product.origin_country === 'India' ? 'bg-red-800 text-white' : 'bg-green-800 text-white'} // Apply background color based on origin country
+              getRowClass={(product) => product.origin_country === 'India' ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}
             />
           )}
           <dialog ref={modalRef} className="modal">
@@ -158,7 +178,7 @@ const ProductsPage = () => {
                     <div className="flex items-center">
                       <span className="font-medium text-base-content">Origin Country:</span>
                       <span className="ml-2 text-base-content">{selectedProduct.origin_country}</span>
-                      {selectedProduct.origin_country === 'BD' && (
+                      {selectedProduct.origin_country === 'Bangladesh' && (
                         <img
                           src="https://flagsapi.com/BD/shiny/32.png"
                           alt="Bangladesh Flag"
@@ -195,29 +215,35 @@ const ProductsPage = () => {
                   {relatedProducts.length > 0 ? (
                     <ul className="space-y-4">
                       {relatedProducts.map((product) => (
-                        <li key={product.id} className={`flex items-center ${product.origin_country === 'India' ? 'bg-red-800' : 'bg-green-800'} space-x-4 py-2 px-4 bg-base-200 rounded-lg shadow-sm`}>
-                          <img
-                            src={`https://flagsapi.com/${product.origin_country === 'Bangladesh' ? 'BD' : 'IN'}/shiny/32.png`}
-                            alt={`${product.origin_country} Flag`}
-                            className="w-8 h-8 rounded-full"
-                          />
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-lg">{product.name}</span>
-                            <span className="text-sm text-gray-500">{product.origin_country}</span>
-                          </div>
+                        <li key={product.id} className={`flex items-center ${product.origin_country === 'India' ? 'bg-red-800' : 'bg-green-800'} p-4 rounded`}>
+                          <span className="text-white">{product.name}</span>
+                          {product.origin_country === 'Bangladesh' && (
+                            <img
+                              src="https://flagsapi.com/BD/shiny/32.png"
+                              alt="Bangladesh Flag"
+                              className="ml-2 w-6 h-6"
+                            />
+                          )}
+                          {product.origin_country === 'India' && (
+                            <img
+                              src="https://flagsapi.com/IN/shiny/32.png"
+                              alt="India Flag"
+                              className="ml-2 w-6 h-6"
+                            />
+                          )}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p>No related products found.</p>
+                    <p className="text-base-content">No related products found.</p>
                   )}
+                  <div className="mt-6 flex justify-end">
+                    <button className="btn btn-primary" onClick={handleCloseModal}>Close</button>
+                  </div>
                 </>
               ) : (
-                <p className="text-center py-4 text-base-content">No product selected.</p>
+                <p>No product selected</p>
               )}
-              <div className="modal-action">
-                <button className="btn" onClick={handleCloseModal}>Close</button>
-              </div>
             </div>
           </dialog>
         </div>

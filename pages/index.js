@@ -62,10 +62,19 @@ export default function Home() {
     if (!Array.isArray(products) || input.trim() === '') return [];
     
     const fuse = new Fuse(products, {
-      keys: ['name', 'barcode', 'details', 'category'], // Include details and category in search
+      keys: [
+        { name: 'name', weight: 0.4 },
+        { name: 'barcode', weight: 0.3 },
+        { name: 'details', weight: 0.2 },
+        { name: 'category', weight: 0.1 }
+      ],
       includeScore: true,
-      threshold: 0.3, // Adjust the threshold for fuzzy matching
+      threshold: 0.2, // Lower threshold for more accuracy
+      distance: 100,  // Lower distance for stricter matching
+      minMatchCharLength: 3, // Only match if the query is at least 3 characters long
+      ignoreLocation: true, // Ignore match position in the string for more flexibility
     });
+    
     
     const result = fuse.search(input);
     return result.map(({ item }) => item);
